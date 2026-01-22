@@ -620,11 +620,15 @@ The CLI uses bootstrap for confidence intervals (both LM and Wilshire):
 2. For each sample perform fit → $\hat{\theta}^{(b)}$
 3. Percentile intervals:
 
-$$\text{CI}_{95\%} = \left[ \hat{\theta}_{2.5\%}, \hat{\theta}_{97.5\%} \right]$$
+$$\mathrm{CI}_{0.95} = \left[ \hat{\theta}_{0.025}, \hat{\theta}_{0.975} \right]$$
 
 Default: $B = 200$ iterations (configurable via `--bootstrap`).
 
 ---
+
+## Authors
+
+Co-authored with [Claude](https://claude.ai) (Anthropic)
 
 ## License
 
