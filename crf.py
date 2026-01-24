@@ -11,6 +11,7 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass
+from typing import Callable
 from pathlib import Path
 
 import numpy as np
@@ -478,10 +479,16 @@ def format_output_csv_wsh(fit: WSHFitResult, predictions: list[Prediction] | Non
 # Plotting
 # =============================================================================
 
-def create_plot_lm(sigma: np.ndarray, T_kelvin: np.ndarray, tr: np.ndarray,
-                   fit: LMFitResult, predict_temps_kelvin: list | None = None,
-                   output_file: str | None = None, show: bool = True) -> None:
-    """Create plot of experimental data and fitted LM curves."""
+def create_plot(sigma: np.ndarray, T_kelvin: np.ndarray, tr: np.ndarray,
+                predict_fn: Callable[[float, float], float | None], title: str,
+                predict_temps_kelvin: list | None = None,
+                output_file: str | None = None, show: bool = True) -> None:
+    """Create plot of experimental data and fitted curves.
+
+    Args:
+        predict_fn: Callable(tr_val, T_k) -> stress or None
+        title: Plot title
+    """
     try:
         import matplotlib.pyplot as plt
     except ImportError:
@@ -492,7 +499,6 @@ def create_plot_lm(sigma: np.ndarray, T_kelvin: np.ndarray, tr: np.ndarray,
     if predict_temps_kelvin is None:
         predict_temps_kelvin = unique_temps
 
-    # Convert to numpy arrays for consistent comparison
     unique_temps = np.asarray(unique_temps)
     predict_temps_kelvin = np.asarray(predict_temps_kelvin)
 
@@ -529,7 +535,7 @@ def create_plot_lm(sigma: np.ndarray, T_kelvin: np.ndarray, tr: np.ndarray,
         if temp_in_array(T_k, predict_temps_kelvin):
             sigma_pred, tr_valid = [], []
             for tr_val in tr_range:
-                s = predict_stress_for_tr(tr_val, T_k, fit.params)
+                s = predict_fn(tr_val, T_k)
                 # 1-1000 MPa: practical engineering stress range for plotting
                 if s is not None and 1 < s < 1000:
                     sigma_pred.append(s)
@@ -543,83 +549,7 @@ def create_plot_lm(sigma: np.ndarray, T_kelvin: np.ndarray, tr: np.ndarray,
 
     ax.set_xlabel('log₁₀(tr) [h]', fontsize=12)
     ax.set_ylabel('σ [MPa]', fontsize=12)
-    ax.set_title(f'Larson-Miller Fit (order {fit.params.order})', fontsize=14)
-    ax.legend(loc='upper right')
-    ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-
-    if output_file:
-        plt.savefig(output_file, dpi=150, bbox_inches='tight')
-        print(f"Plot saved to: {output_file}", file=sys.stderr)
-
-    if show and not output_file:
-        plt.show()
-
-
-def create_plot_wsh(sigma: np.ndarray, T_kelvin: np.ndarray, tr: np.ndarray,
-                    fit: WSHFitResult, tensile_data: TensileData,
-                    predict_temps_kelvin: list | None = None,
-                    output_file: str | None = None, show: bool = True) -> None:
-    """Create plot of experimental data and fitted WSH curves."""
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        print("Warning: matplotlib not available, skipping plot", file=sys.stderr)
-        return
-
-    unique_temps = np.unique(T_kelvin)
-    if predict_temps_kelvin is None:
-        predict_temps_kelvin = unique_temps
-
-    unique_temps = np.asarray(unique_temps)
-    predict_temps_kelvin = np.asarray(predict_temps_kelvin)
-
-    all_temps = list(unique_temps)
-    for T_p in predict_temps_kelvin:
-        if not np.any(np.isclose(T_p, all_temps, rtol=1e-9)):
-            all_temps.append(T_p)
-    all_temps = sorted(all_temps)
-
-    colors = plt.cm.viridis(np.linspace(0, 1, len(all_temps)))
-    temp_to_color = {T_k: colors[i] for i, T_k in enumerate(all_temps)}
-
-    fig, ax = plt.subplots(figsize=(10, 7))
-    # tr_range: 1 to 10^6 hours covers short-term tests to design life (100k h)
-    tr_range = np.logspace(0, 6, 100)
-
-    def temp_in_array(T, arr):
-        return np.any(np.isclose(T, arr, rtol=1e-9))
-
-    for T_k in all_temps:
-        T_c = T_k - 273.15
-        color = temp_to_color[T_k]
-
-        # Experimental data points
-        if temp_in_array(T_k, unique_temps):
-            mask = np.isclose(T_kelvin, T_k, rtol=1e-9)
-            ax.scatter(np.log10(tr[mask]), sigma[mask],
-                       color=color, label=f'{T_c:.0f} °C', alpha=0.7, s=50)
-
-        # Fitted curve
-        if temp_in_array(T_k, predict_temps_kelvin):
-            sigma_pred, tr_valid = [], []
-            for tr_val in tr_range:
-                s = predict_stress_wsh(tr_val, T_k, fit.params, tensile_data)
-                # 1-1000 MPa: practical engineering stress range for plotting
-                if s is not None and 1 < s < 1000:
-                    sigma_pred.append(s)
-                    tr_valid.append(tr_val)
-
-            if sigma_pred:
-                has_data = temp_in_array(T_k, unique_temps)
-                label = None if has_data else f'{T_c:.0f} °C'
-                ax.plot(np.log10(tr_valid), sigma_pred, '-',
-                        color=color, linewidth=2, label=label)
-
-    ax.set_xlabel('log₁₀(tr) [h]', fontsize=12)
-    ax.set_ylabel('σ [MPa]', fontsize=12)
-    ax.set_title(f'Wilshire Fit ({fit.params.n_regions} region{"s" if fit.params.n_regions > 1 else ""})', fontsize=14)
+    ax.set_title(title, fontsize=14)
     ax.legend(loc='upper right')
     ax.grid(True, alpha=0.3)
 
@@ -893,7 +823,11 @@ Examples:
         # Plot
         if not args.no_plot or args.plot_output:
             predict_temps_k = [T_c + 273.15 for T_c in predict_temps_c] if args.predict_tr else None
-            create_plot_lm(sigma, T_kelvin, tr, fit, predict_temps_k, args.plot_output)
+            create_plot(
+                sigma, T_kelvin, tr,
+                lambda tr_val, T_k: predict_stress_for_tr(tr_val, T_k, fit.params),
+                f'Larson-Miller Fit (order {fit.params.order})',
+                predict_temps_k, args.plot_output)
 
     else:  # Wilshire model
         # Validate tensile data
@@ -983,8 +917,12 @@ Examples:
         # Main plot
         if show_main:
             predict_temps_k = [T_c + 273.15 for T_c in predict_temps_c] if args.predict_tr else None
-            create_plot_wsh(sigma, T_kelvin, tr, fit, tensile_data, predict_temps_k,
-                            args.plot_output, show=not show_multiple)
+            n_reg = fit.params.n_regions
+            create_plot(
+                sigma, T_kelvin, tr,
+                lambda tr_val, T_k: predict_stress_wsh(tr_val, T_k, fit.params, tensile_data),
+                f'Wilshire Fit ({n_reg} region{"s" if n_reg > 1 else ""})',
+                predict_temps_k, args.plot_output, show=not show_multiple)
 
         # Show all plots at once if multiple interactive plots
         if show_multiple:
