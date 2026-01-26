@@ -577,10 +577,16 @@ For multi-region model, **iteration** is needed because the region depends on $P
 Both models minimize **mean squared error** in transformed space:
 
 **Larson-Miller:**
-$$\text{MSE}_{LM} = \frac{1}{N} \sum_{j=1}^{N} \left( \log_{10} t_{r,j}^{\text{exp}} - \log_{10} t_{r,j}^{\text{calc}} \right)^2$$
+
+```math
+\text{MSE}_{LM} = \frac{1}{N} \sum_{j=1}^{N} \left( \log_{10} t_{r,j}^{\text{exp}} - \log_{10} t_{r,j}^{\text{calc}} \right)^2
+```
 
 **Wilshire:**
-$$\text{MSE}_{WSH} = \frac{1}{N} \sum_{j=1}^{N} \left( y_j^{\text{exp}} - y_j^{\text{calc}} \right)^2$$
+
+```math
+\text{MSE}_{WSH} = \frac{1}{N} \sum_{j=1}^{N} \left( y_j^{\text{exp}} - y_j^{\text{calc}} \right)^2
+```
 
 where $y = \ln(-\ln(\sigma/\sigma_{TS}))$.
 
@@ -600,7 +606,10 @@ Parameters: `maxiter=10000`, `xatol=1e-8`, `fatol=1e-8`
 **Wilshire:** Linear regression by least squares
 
 For each region:
-$$\begin{pmatrix} 1 & P_{W,1} \\ \vdots & \vdots \\ 1 & P_{W,n} \end{pmatrix} \begin{pmatrix} \ln(k) \\ u \end{pmatrix} = \begin{pmatrix} y_1 \\ \vdots \\ y_n \end{pmatrix}$$
+
+```math
+\begin{pmatrix} 1 & P_{W,1} \\ \vdots & \vdots \\ 1 & P_{W,n} \end{pmatrix} \begin{pmatrix} \ln(k) \\ u \end{pmatrix} = \begin{pmatrix} y_1 \\ \vdots \\ y_n \end{pmatrix}
+```
 
 Solution: `numpy.linalg.lstsq`
 
