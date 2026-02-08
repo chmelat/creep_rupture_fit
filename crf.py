@@ -174,7 +174,7 @@ def format_output_text_lm(fit: LMFitResult, predictions: list[Prediction] | None
             lines.append(f"  a{i} = {coeff:.1f}")
 
     lines.extend(["", "Fit quality:"])
-    lines.append(f"  Err (MSE log10(tr)) = {fit.mse:.4f}")
+    lines.append(f"  RMSE (log10(tr)) = {fit.rmse:.4f}")
     lines.append(f"  R^2 = {fit.r_squared:.4f}")
     lines.append(f"  N  = {fit.n_points}")
 
@@ -261,8 +261,9 @@ def format_output_text_wsh(fit: WSHFitResult, predictions: list[Prediction] | No
             lines.append("")
             lines.append(f"  Breakpoints: {', '.join(f'{bp:.2f}' for bp in fit.breakpoints)}")
 
+    rmse = np.sqrt(fit.rmse)
     lines.extend(["", "Fit quality:"])
-    lines.append(f"  Err (MSE ln space) = {fit.mse:.4f}")
+    lines.append(f"  RMSE (ln space) = {rmse:.4f}")
     lines.append(f"  R^2 = {fit.r_squared:.4f}")
     lines.append(f"  N  = {fit.n_points}")
 
@@ -296,7 +297,7 @@ def format_output_json_lm(fit: LMFitResult, predictions: list[Prediction] | None
             'coeffs': fit.params.coeffs,
             'C_fixed': fit.params.C_fixed,
             'order': fit.params.order,
-            'mse': fit.mse,
+            'rmse': fit.rmse,
             'r_squared': fit.r_squared,
             'n_points': fit.n_points,
             'success': fit.success
@@ -340,7 +341,7 @@ def format_output_json_wsh(fit: WSHFitResult, predictions: list[Prediction] | No
                 for r in fit.params.regions
             ],
             'breakpoints': fit.breakpoints,
-            'mse': fit.mse,
+            'rmse': fit.rmse,
             'r_squared': fit.r_squared,
             'n_points': fit.n_points,
             'success': fit.success
@@ -410,7 +411,7 @@ def format_output_csv_lm(fit: LMFitResult, predictions: list[Prediction] | None 
         for i, coeff in enumerate(fit.params.coeffs):
             lines.append(f"a{i},{coeff}")
 
-    lines.append(f"MSE,{fit.mse}")
+    lines.append(f"RMSE,{fit.rmse}")
     lines.append(f"R2,{fit.r_squared}")
 
     if predictions:
@@ -474,7 +475,7 @@ def format_output_csv_wsh(fit: WSHFitResult, predictions: list[Prediction] | Non
             if region.Q is not None:
                 lines.append(f"{prefix}Q,{region.Q}")
 
-    lines.append(f"MSE,{fit.mse}")
+    lines.append(f"RMSE,{fit.rmse}")
     lines.append(f"R2,{fit.r_squared}")
 
     if predictions:

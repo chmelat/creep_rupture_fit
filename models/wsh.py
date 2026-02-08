@@ -171,7 +171,7 @@ class WSHParams:
 class WSHFitResult:
     """Result of Wilshire fit."""
     params: WSHParams
-    mse: float
+    rmse: float
     r_squared: float
     n_points: int
     success: bool
@@ -617,14 +617,16 @@ def fit_wilshire(sigma: np.ndarray, T: np.ndarray, tr: np.ndarray,
     ss_tot = np.sum((y - np.mean(y)) ** 2)
     r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
 
+    rmse = np.sqrt(mse) if np.isfinite(mse) else np.inf
+
     # Fit is successful if we have valid regions with finite parameters
     success = (len(regions) > 0
                and all(np.isfinite(r.k) and np.isfinite(r.u) for r in regions)
-               and np.isfinite(mse))
+               and np.isfinite(rmse))
 
     return WSHFitResult(
         params=params,
-        mse=mse,
+        rmse=rmse,
         r_squared=r_squared,
         n_points=len(tr),
         success=success,

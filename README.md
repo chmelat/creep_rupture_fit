@@ -1,6 +1,6 @@
 # Creep Rupture Fitting Tool
 
-**Version 0.2.0** (2026-01-21)
+**Version 0.3.0** (2026-01-21)
 
 CLI tool for fitting creep rupture equations to experimental data.
 
@@ -125,7 +125,7 @@ python3 crf.py <input_file> [--model {lm,wsh}] [OPTIONS]
 | Argument | Description | Default |
 |----------|-------------|---------|
 | `--no-confidence` | Disable confidence intervals (faster) | - |
-| `--bootstrap N` | Number of bootstrap iterations | 200 |
+| `--bootstrap [N]` | Use bootstrap CI (default for WSH; LM uses asymptotic CI by default) | 200 |
 | `--seed SEED` | Random seed for reproducibility | - |
 
 ### Larson-Miller Arguments
@@ -248,7 +248,7 @@ Fitted parameters (95% CI):
   Breakpoints: -23.00
 
 Fit quality:
-  Err (MSE ln space) = 0.0089
+  RMSE (ln space) = 0.0943
   R^2 = 0.9784
   N  = 34
   DOF = 29
@@ -272,7 +272,7 @@ Predictions for tr = 100000 h:
       {"k": 150.23, "u": 0.245, "PW_min": null, "PW_max": -23},
       {"k": 8.95, "u": 0.1217, "PW_min": -23, "PW_max": null}
     ],
-    "mse": 0.0089,
+    "rmse": 0.0943,
     "r_squared": 0.9784
   },
   "confidence_intervals": { ... }
@@ -290,7 +290,7 @@ Use `--output-format json` to get full output including confidence intervals and
 | Indicator | Good Value | Warning Signs |
 |-----------|------------|---------------|
 | **R²** | > 0.95 | < 0.90 indicates poor fit |
-| **MSE** | As low as possible | Compare between models |
+| **RMSE** | As low as possible | Typical prediction error in log/ln units |
 | **Bootstrap success** | > 90% | < 50% indicates unstable fit |
 
 ### What if the fit is poor?
@@ -446,7 +446,7 @@ $$a_2 x^2 + a_1 x + (a_0 - k) = 0$$
 
 Discriminant $D = a_1^2 - 4a_2(a_0 - k)$, roots $x_{1,2} = \frac{-a_1 \pm \sqrt{D}}{2a_2}$
 
-The smaller positive value $\sigma = 10^x$ in range $[0.1, 1000]$ MPa is selected.
+The root on the physically correct (descending) branch is selected, where $\frac{dP_{LM}}{dx} < 0$ (higher stress → shorter life).
 
 ---
 
@@ -574,21 +574,23 @@ For multi-region model, **iteration** is needed because the region depends on $P
 
 #### Objective Function
 
-Both models minimize **mean squared error** in transformed space:
+Both models minimize **mean squared error (MSE)** in transformed space. The reported fit quality metric is **RMSE** (root mean square error), which has the same units as the predicted quantity:
 
 **Larson-Miller:**
 
 ```math
-\text{MSE}_{LM} = \frac{1}{N} \sum_{j=1}^{N} \left( \log_{10} t_{r,j}^{\text{exp}} - \log_{10} t_{r,j}^{\text{calc}} \right)^2
+\text{RMSE}_{LM} = \sqrt{\frac{1}{N} \sum_{j=1}^{N} \left( \log_{10} t_{r,j}^{\text{exp}} - \log_{10} t_{r,j}^{\text{calc}} \right)^2}
 ```
 
 **Wilshire:**
 
 ```math
-\text{MSE}_{WSH} = \frac{1}{N} \sum_{j=1}^{N} \left( y_j^{\text{exp}} - y_j^{\text{calc}} \right)^2
+\text{RMSE}_{WSH} = \sqrt{\frac{1}{N} \sum_{j=1}^{N} \left( y_j^{\text{exp}} - y_j^{\text{calc}} \right)^2}
 ```
 
 where $y = \ln(-\ln(\sigma/\sigma_{TS}))$.
+
+Note: For confidence intervals, the unbiased variance estimate $s^2 = SS_\text{res}/(N-p)$ is used instead (dividing by degrees of freedom, not $N$).
 
 #### Why Transformed Scale?
 
@@ -621,9 +623,13 @@ $$R^2 = 1 - \frac{SS_{\text{res}}}{SS_{\text{tot}}} = 1 - \frac{\sum_j (y_j - \h
 
 ### Confidence Intervals
 
-#### Bootstrap Method
+#### Asymptotic Method (LM default)
 
-The CLI uses bootstrap for confidence intervals (both LM and Wilshire):
+Uses the Jacobian-based covariance matrix $\text{Cov} = s^2 (J^T J)^{-1}$, where $s^2 = SS_\text{res} / (N - p)$ is the unbiased variance estimate. Fast and accurate for LM's 3-4 parameters.
+
+#### Bootstrap Method (WSH default, optional for LM)
+
+Used by default for Wilshire; enabled for LM with `--bootstrap [N]`:
 
 1. Generate $B$ bootstrap samples (resampling with replacement)
 2. For each sample perform fit → $\hat{\theta}^{(b)}$
@@ -631,7 +637,7 @@ The CLI uses bootstrap for confidence intervals (both LM and Wilshire):
 
 $$\mathrm{CI}_{0.95} = \left[ \hat{\theta}_{0.025}, \hat{\theta}_{0.975} \right]$$
 
-Default: $B = 200$ iterations (configurable via `--bootstrap`).
+Default: $B = 200$ iterations.
 
 ---
 

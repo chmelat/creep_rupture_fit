@@ -52,7 +52,7 @@ class LMParams:
 class LMFitResult:
     """Result of Larson-Miller fit."""
     params: LMParams
-    mse: float
+    rmse: float
     r_squared: float
     n_points: int
     success: bool
@@ -149,7 +149,7 @@ def fit_larson_miller(sigma: np.ndarray, T: np.ndarray, tr: np.ndarray,
 
     return LMFitResult(
         params=params,
-        mse=mse,
+        rmse=np.sqrt(mse),
         r_squared=r_squared,
         n_points=len(tr),
         success=result.success
