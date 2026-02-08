@@ -85,13 +85,14 @@ def parse_input_file(filepath: str, delimiter: str = None, temp_unit: str = 'C')
         tuple: (sigma, T_kelvin, tr) as numpy arrays
     """
     sigma_list, temp_list, tr_list = [], [], []
+    skipped_lines = []
 
     with open(filepath, 'r') as f:
         lines = f.readlines()
 
     auto_delim = None
 
-    for line in lines:
+    for line_num, line in enumerate(lines, 1):
         line = line.strip()
 
         if not line or line.startswith('#'):
@@ -110,11 +111,21 @@ def parse_input_file(filepath: str, delimiter: str = None, temp_unit: str = 'C')
                 sigma_list.append(values[0])
                 temp_list.append(values[1])
                 tr_list.append(values[2])
+            else:
+                skipped_lines.append(line_num)
         except ValueError:
-            continue
+            skipped_lines.append(line_num)
 
     if not sigma_list:
         raise ValueError("No valid data found in input file")
+
+    if skipped_lines:
+        import warnings
+        warnings.warn(
+            f"Skipped {len(skipped_lines)} non-parseable line(s) "
+            f"in {filepath}: {skipped_lines}",
+            UserWarning
+        )
 
     sigma = np.array(sigma_list)
     temp = np.array(temp_list)

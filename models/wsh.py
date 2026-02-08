@@ -95,9 +95,10 @@ class TensileData:
     def from_file(cls, filepath: str, temp_unit: str = 'C') -> 'TensileData':
         """Load tensile data from CSV file."""
         T_list, sigma_list = [], []
+        skipped_lines = []
 
         with open(filepath, 'r') as f:
-            for line in f:
+            for line_num, line in enumerate(f, 1):
                 line = line.strip()
                 if not line or line.startswith('#'):
                     continue
@@ -108,10 +109,19 @@ class TensileData:
                         T_list.append(float(parts[0].strip()))
                         sigma_list.append(float(parts[1].strip()))
                     except ValueError:
-                        continue
+                        skipped_lines.append(line_num)
+                else:
+                    skipped_lines.append(line_num)
 
         if not T_list:
             raise ValueError("No valid data found in tensile data file")
+
+        if skipped_lines:
+            warnings.warn(
+                f"Skipped {len(skipped_lines)} non-parseable line(s) "
+                f"in {filepath}: {skipped_lines}",
+                UserWarning
+            )
 
         T = np.array(T_list)
         sigma_TS = np.array(sigma_list)
@@ -607,12 +617,17 @@ def fit_wilshire(sigma: np.ndarray, T: np.ndarray, tr: np.ndarray,
     ss_tot = np.sum((y - np.mean(y)) ** 2)
     r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
 
+    # Fit is successful if we have valid regions with finite parameters
+    success = (len(regions) > 0
+               and all(np.isfinite(r.k) and np.isfinite(r.u) for r in regions)
+               and np.isfinite(mse))
+
     return WSHFitResult(
         params=params,
         mse=mse,
         r_squared=r_squared,
         n_points=len(tr),
-        success=True,
+        success=success,
         breakpoints=breakpoints
     )
 
