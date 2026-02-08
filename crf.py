@@ -24,7 +24,7 @@ if str(_script_dir) not in sys.path:
 from models.lm import (  # noqa: E402
     LMFitResult, CIResult,
     fit_larson_miller, predict_stress_for_tr,
-    bootstrap_confidence_intervals
+    compute_confidence_intervals, bootstrap_confidence_intervals
 )
 from models.wsh import (  # noqa: E402
     TensileData, WSHFitResult, WSHCIResult, fit_wilshire, predict_stress_wsh, compute_wilshire_parameter,
@@ -741,8 +741,8 @@ Examples:
     ci_group = parser.add_argument_group('Confidence intervals')
     ci_group.add_argument('--no-confidence', action='store_true',
                           help='Disable confidence intervals')
-    ci_group.add_argument('--bootstrap', type=int, metavar='N', default=200,
-                          help='Bootstrap iterations (default: 200)')
+    ci_group.add_argument('--bootstrap', type=int, metavar='N', nargs='?', const=200, default=None,
+                          help='Use bootstrap CI (default for WSH; optional N iterations, default 200)')
     ci_group.add_argument('--seed', type=int, metavar='SEED',
                           help='Random seed for reproducibility')
 
@@ -803,12 +803,18 @@ Examples:
         # Confidence intervals
         ci = None
         if not args.no_confidence:
-            ci = bootstrap_confidence_intervals(
-                sigma, T_kelvin, tr, order=args.order, fix_c=args.fix_c,
-                n_bootstrap=args.bootstrap, seed=args.seed
-            )
-            if ci is None:
-                print("Warning: Bootstrap CI failed (not enough successful fits)", file=sys.stderr)
+            if args.bootstrap is not None:
+                ci = bootstrap_confidence_intervals(
+                    sigma, T_kelvin, tr, order=args.order, fix_c=args.fix_c,
+                    n_bootstrap=args.bootstrap, seed=args.seed
+                )
+                if ci is None:
+                    print("Warning: Bootstrap CI failed (not enough successful fits)", file=sys.stderr)
+            else:
+                # Asymptotic CI: fast and accurate for LM's 3-4 parameters
+                ci = compute_confidence_intervals(fit, sigma, T_kelvin, tr)
+                if ci is None:
+                    print("Warning: Asymptotic CI failed (ill-conditioned matrix or insufficient DOF)", file=sys.stderr)
 
         # Predictions
         predictions = None
@@ -878,16 +884,17 @@ Examples:
             print(f"Error during fitting: {e}", file=sys.stderr)
             sys.exit(1)
 
-        # Confidence intervals
+        # Confidence intervals (WSH always uses bootstrap)
         ci = None
         if not args.no_confidence:
+            n_boot = args.bootstrap if args.bootstrap is not None else 200
             ci = bootstrap_confidence_intervals_wsh(
                 sigma, T_kelvin, tr,
                 tensile_data=tensile_data,
                 region_boundaries=region_boundaries,
                 fix_Q=args.fix_q,
                 per_region_Q=args.per_region_q,
-                n_bootstrap=args.bootstrap,
+                n_bootstrap=n_boot,
                 seed=args.seed
             )
             if ci is None:
