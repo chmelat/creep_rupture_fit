@@ -199,8 +199,15 @@ def predict_stress_for_tr(tr_target: float, T: float, params: LMParams,
                 x1 = (-a1 + sqrt_D) / (2 * a2)
                 x2 = (-a1 - sqrt_D) / (2 * a2)
                 sigma1, sigma2 = 10 ** x1, 10 ** x2
-                # Choose smaller positive root
-                candidates = [s for s in (sigma1, sigma2) if s > 0]
+                # Choose root on the physically correct branch:
+                # dP_LM/dx < 0 (higher stress → shorter life)
+                candidates = []
+                for x, s in [(x1, sigma1), (x2, sigma2)]:
+                    if s > 0 and (a1 + 2 * a2 * x) < 0:
+                        candidates.append(s)
+                if not candidates:
+                    # Fallback: no root on descending branch, take any positive
+                    candidates = [s for s in (sigma1, sigma2) if s > 0]
                 if not candidates:
                     return None
                 sigma = min(candidates)
